@@ -1,0 +1,17 @@
+# Jekyll configuration for GitHub Pages
+# This allows GitHub Pages to build the site if needed
+
+title: backend2mcp
+description: Convert Python web backends into MCP servers automatically
+theme: jekyll-theme-minimal
+
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+exclude:
+  - node_modules
+  - package*.json
+  - .gitignore
+  - Gemfile*
+  - LICENSE

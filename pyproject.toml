@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "backend2mcp"
+version = "0.1.0"
+description = "Convert any Python web backend into a fully functional MCP server automatically"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "backend2mcp Contributors"}
+]
+keywords = ["mcp", "model-context-protocol", "fastapi", "flask", "django"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+# Core dependencies - always installed
+dependencies = [
+    "mcp>=1.1.2",
+    "typer>=0.14.0",
+    "pydantic>=2.10.0",
+]
+
+[project.optional-dependencies]
+fastapi = ["fastapi>=0.115.0", "uvicorn>=0.32.0"]
+flask = ["flask>=3.1.0"]
+django = ["django>=5.2.0", "djangorestframework>=3.15.0"]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "mypy>=1.14.0",
+    "black>=24.10.0",
+    "isort>=5.13.0",
+    "httpx>=0.28.0",
+    "fastapi>=0.115.0",
+    "flask>=3.1.0",
+    "django>=5.2.0",
+    "djangorestframework>=3.15.0",
+]
+
+[project.scripts]
+backend2mcp = "backend2mcp.cli:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+strict = true
