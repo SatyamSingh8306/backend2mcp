@@ -9,6 +9,7 @@ from fastapi.dependencies.utils import get_depends_shallow
 from fastapi.routing import APIRoute
 
 from backend2mcp.core.adapter import BaseAdapter, ToolInfo
+from backend2mcp.core.auth import AuthContext, AuthProvider
 from backend2mcp.core.exceptions import RouteIntrospectionError, SchemaConversionError
 from backend2mcp.core.schema import extract_schema_from_signature, route_to_description
 
@@ -30,12 +31,18 @@ class MCPAdapter(BaseAdapter):
         adapter.run()
     """
 
-    def __init__(self, app: FastAPI | APIRouter | None = None):
-        """Initialize the adapter with a FastAPI app.
+    def __init__(
+        self,
+        app: FastAPI | APIRouter | None = None,
+        auth_provider: AuthProvider | None = None,
+    ):
+        """Initialize the adapter with a FastAPI app and optional auth.
 
         Args:
             app: FastAPI application or router instance
+            auth_provider: Optional auth provider for authentication
         """
+        super().__init__(auth_provider=auth_provider)
         self._app = app
 
     def get_app(self) -> FastAPI | APIRouter:
@@ -198,17 +205,39 @@ class MCPAdapter(BaseAdapter):
         self,
         handler: Callable[..., Any],
         arguments: dict[str, Any],
-        context: dict[str, Any] | None = None,
+        auth_context: AuthContext | None = None,
     ) -> Any:
-        """Execute a tool by calling the handler directly."""
+        """Execute a tool by calling the handler directly.
+
+        Args:
+            handler: The route handler function
+            arguments: Resolved arguments from MCP request
+            auth_context: AuthContext with auth information
+
+        Returns:
+            The handler's return value, serialized appropriately
+        """
         try:
+            # Prepare context-aware arguments
+            exec_args = dict(arguments)
+
+            # Inject auth headers if handler expects them
+            if auth_context:
+                # Add auth context to arguments for handlers that need it
+                if "auth_context" in handler.__code__.co_varnames:
+                    exec_args["auth_context"] = auth_context
+
+                # Add headers for handlers that expect request-like objects
+                if "headers" in handler.__code__.co_varnames:
+                    exec_args["headers"] = auth_context.headers
+
             # Check if handler is async
             if inspect.iscoroutinefunction(handler):
                 import asyncio
 
-                result = asyncio.run(handler(**arguments))
+                result = asyncio.run(handler(**exec_args))
             else:
-                result = handler(**arguments)
+                result = handler(**exec_args)
 
             # Handle FastAPI responses
             if hasattr(result, "model_dump"):

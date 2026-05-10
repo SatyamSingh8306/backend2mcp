@@ -7,6 +7,7 @@ from django.conf import settings
 from django.urls import URLPattern, URLResolver, get_resolver
 
 from backend2mcp.core.adapter import BaseAdapter, ToolInfo
+from backend2mcp.core.auth import AuthContext, AuthProvider
 from backend2mcp.core.exceptions import RouteIntrospectionError
 from backend2mcp.core.schema import route_to_description
 
@@ -26,13 +27,20 @@ class MCPAdapter(BaseAdapter):
         adapter.run()
     """
 
-    def __init__(self, urls: list[URLPattern] | None = None, app_name: str = "app"):
-        """Initialize the adapter with Django URL patterns.
+    def __init__(
+        self,
+        urls: list[URLPattern] | None = None,
+        app_name: str = "app",
+        auth_provider: AuthProvider | None = None,
+    ):
+        """Initialize the adapter with Django URL patterns and optional auth.
 
         Args:
             urls: List of URL patterns (defaults to project's ROOT_URLCONF)
             app_name: App name for namespace
+            auth_provider: Optional auth provider for authentication
         """
+        super().__init__(auth_provider=auth_provider)
         self._urls = urls
         self._app_name = app_name
 
@@ -254,20 +262,37 @@ class MCPAdapter(BaseAdapter):
         self,
         handler: Callable[..., Any],
         arguments: dict[str, Any],
-        context: dict[str, Any] | None = None,
+        auth_context: AuthContext | None = None,
     ) -> Any:
         """Execute a tool by calling the handler directly.
 
         Note: Django handlers can be sync or async.
+
+        Args:
+            handler: The route handler function
+            arguments: Resolved arguments from MCP request
+            auth_context: AuthContext with auth information
         """
         try:
+            # Prepare execution arguments
+            exec_args = dict(arguments)
+
+            # Inject auth context if handler expects it
+            if auth_context:
+                if "auth_context" in handler.__code__.co_varnames:
+                    exec_args["auth_context"] = auth_context
+
+                # Add headers for handlers that expect request with headers
+                if "headers" in handler.__code__.co_varnames:
+                    exec_args["headers"] = auth_context.headers
+
             # Check if handler is async (Django 3.1+)
             if inspect.iscoroutinefunction(handler):
                 import asyncio
 
-                result = asyncio.run(handler(**arguments))
+                result = asyncio.run(handler(**exec_args))
             else:
-                result = handler(**arguments)
+                result = handler(**exec_args)
 
             # Handle Django REST Framework responses
             if hasattr(result, "data"):

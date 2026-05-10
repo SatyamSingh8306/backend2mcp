@@ -7,6 +7,7 @@ from flask import Flask, Request, request
 from werkzeug.routing import Map, Rule
 
 from backend2mcp.core.adapter import BaseAdapter, ToolInfo
+from backend2mcp.core.auth import AuthContext, AuthProvider
 from backend2mcp.core.exceptions import RouteIntrospectionError, SchemaConversionError
 from backend2mcp.core.schema import extract_schema_from_signature, route_to_description
 
@@ -28,12 +29,18 @@ class MCPAdapter(BaseAdapter):
         adapter.run()
     """
 
-    def __init__(self, app: Flask | None = None):
-        """Initialize the adapter with a Flask app.
+    def __init__(
+        self,
+        app: Flask | None = None,
+        auth_provider: AuthProvider | None = None,
+    ):
+        """Initialize the adapter with a Flask app and optional auth.
 
         Args:
             app: Flask application instance
+            auth_provider: Optional auth provider for authentication
         """
+        super().__init__(auth_provider=auth_provider)
         self._app = app
 
     def get_app(self) -> Flask:
@@ -206,11 +213,16 @@ class MCPAdapter(BaseAdapter):
         self,
         handler: Callable[..., Any],
         arguments: dict[str, Any],
-        context: dict[str, Any] | None = None,
+        auth_context: AuthContext | None = None,
     ) -> Any:
         """Execute a tool by calling the handler directly.
 
         Note: Flask handlers are always synchronous.
+
+        Args:
+            handler: The route handler function
+            arguments: Resolved arguments from MCP request
+            auth_context: AuthContext with auth information
         """
         try:
             from flask import Flask
@@ -220,11 +232,31 @@ class MCPAdapter(BaseAdapter):
                 # Import werkzeug's Local proxy
                 from werkzeug.local import LocalProxy
 
-                # Create a mock request if needed
-                if "request" in handler.__code__.co_varnames:
-                    arguments["request"] = LocalProxy(type("MockRequest", (), {"args": arguments})())
+                # Prepare execution arguments
+                exec_args = dict(arguments)
 
-                result = handler(**arguments)
+                # Inject auth context if handler expects it
+                if auth_context:
+                    if "auth_context" in handler.__code__.co_varnames:
+                        exec_args["auth_context"] = auth_context
+
+                    # Add headers for handlers that expect them
+                    if "headers" in handler.__code__.co_varnames:
+                        exec_args["headers"] = auth_context.headers
+
+                    # Create mock request with auth headers
+                    if "request" in handler.__code__.co_varnames:
+                        from typing import Optional
+                        from werkzeug.datastructures import MultiDict
+
+                        class MockRequest:
+                            def __init__(self, args, headers):
+                                self.args = MultiDict(args)
+                                self.headers = type("Headers", (), headers)()
+
+                        exec_args["request"] = MockRequest(exec_args, auth_context.headers)
+
+                result = handler(**exec_args)
 
                 # Flask can return dicts (JSON) or responses
                 if hasattr(result, "get_json"):

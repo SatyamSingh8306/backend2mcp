@@ -110,12 +110,101 @@ Tools are auto-named using a consistent convention:
 | `PUT /users/{id}` | `put_by_id` |
 | `DELETE /users/{id}` | `delete_by_id` |
 
+## Authentication
+
+`backend2mcp` provides flexible authentication support through pluggable `AuthProvider` classes.
+
+### No Authentication (Default)
+
+Zero config, no auth required:
+
+```python
+adapter = MCPAdapter(app)  # Works without auth
+```
+
+### Bearer Token Auth
+
+```python
+from backend2mcp.core import BearerAuthProvider
+
+auth = BearerAuthProvider(
+    token_header="Authorization",        # Header name
+    token_prefix="Bearer",               # Token prefix
+    validate_tokens=["secret1", "secr2"] # Optional whitelist
+)
+adapter = MCPAdapter(app, auth_provider=auth)
+```
+
+### API Key Auth
+
+```python
+from backend2mcp.core import APIKeyAuthProvider
+
+auth = APIKeyAuthProvider(
+    header_name="X-API-Key",     # Header name
+    query_param="api_key",       # Query param name
+    valid_keys=["key1", "key2"]  # Optional whitelist
+)
+adapter = MCPAdapter(app, auth_provider=auth)
+```
+
+### Custom Headers Injection
+
+```python
+from backend2mcp.core import HeaderInjectionAuthProvider
+
+auth = HeaderInjectionAuthProvider(
+    static_headers={
+        "X-Custom-Header": "value",
+        "Authorization": "Bearer static-token"
+    }
+)
+adapter = MCPAdapter(app, auth_provider=auth)
+```
+
+### Combining Providers
+
+```python
+from backend2mcp.core import (
+    BearerAuthProvider,
+    APIKeyAuthProvider,
+    combine_providers
+)
+
+auth = combine_providers(
+    BearerAuthProvider(),
+    APIKeyAuthProvider()
+)
+adapter = MCPAdapter(app, auth_provider=auth)
+```
+
+### Accessing Auth in Handlers
+
+Auth context is injected into handlers:
+
+```python
+from backend2mcp.fastapi import MCPAdapter
+from backend2mcp.core import BearerAuthProvider, AuthContext
+
+app = FastAPI()
+auth = BearerAuthProvider()
+
+@app.get("/users/{id}")
+async def get_user(id: int, auth_context: AuthContext = None):
+    headers = auth_context.headers if auth_context else {}
+    user = get_user_from_db(id, headers=headers)
+    return user
+
+adapter = MCPAdapter(app, auth_provider=auth)
+```
+
 ## Architecture
 
 ```
 backend2mcp/
 ├── core/              # Shared implementation
 │   ├── adapter.py     # BaseAdapter abstract interface
+│   ├── auth.py        # Auth providers (Bearer, API Key, etc.)
 │   ├── server.py      # MCP server implementation
 │   ├── schema.py      # Schema conversion utilities
 │   └── exceptions.py  # Structured exceptions
@@ -128,6 +217,7 @@ backend2mcp/
 ### Core Abstractions
 
 - **`BaseAdapter`**: Abstract interface all framework adapters implement
+- **`AuthProvider` / `AuthContext`**: Pluggable authentication system
 - **`MCPServer`**: Handles MCP protocol using official `mcp` SDK
 - **Tool Execution**: Direct handler invocation (no HTTP calls)
 - **Schema Generation**: Pydantic-integrated JSON Schema extraction
