@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "backend2mcp Contributors"}
+    {name = "backend2mcp Contributors", email = "contributors@backend2mcp.dev"}
 ]
 keywords = ["mcp", "model-context-protocol", "fastapi", "flask", "django"]
 classifiers = [
@@ -21,7 +21,12 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",
+    "Framework :: Flask",
+    "Framework :: Django",
 ]
+urls = { homepage = "https://github.com/SatyamSingh8306/backend2mcp", repository = "https://github.com/SatyamSingh8306/backend2mcp" }
 
 # Core dependencies - always installed
 dependencies = [
@@ -42,6 +47,8 @@ dev = [
     "black>=24.10.0",
     "isort>=5.13.0",
     "httpx>=0.28.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
     "fastapi>=0.115.0",
     "flask>=3.1.0",
     "django>=5.2.0",
