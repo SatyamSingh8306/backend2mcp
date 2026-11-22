@@ -19,6 +19,7 @@ class ToolInfo:
     input_schema: dict[str, Any]
     hidden: bool = False
     required_permissions: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
     def to_mcp_tool(self) -> dict[str, Any]:
         """Convert to MCP tool specification."""
@@ -41,13 +42,16 @@ class BaseAdapter(ABC):
     def __init__(
         self,
         auth_provider: AuthProvider | None = None,
+        server_name: str | None = None,
     ):
         """Initialize the adapter with optional auth provider.
 
         Args:
             auth_provider: Optional auth provider. Defaults to NoAuthProvider.
+            server_name: Optional MCP server name (defaults to a framework name).
         """
         self._auth_provider = auth_provider or NoAuthProvider()
+        self.server_name = server_name
 
     @property
     def auth_provider(self) -> AuthProvider:
@@ -132,3 +136,13 @@ class BaseAdapter(ABC):
             Sanitized tool name (alphanumeric + underscores)
         """
         pass
+
+    def run(self) -> None:
+        """Run the adapter as an MCP server over stdio.
+
+        Subclasses may override this to supply a framework-specific server
+        name; this default works for every adapter.
+        """
+        from backend2mcp.core.server import MCPServer
+
+        MCPServer(self, self.server_name or "backend2mcp").run_sync()

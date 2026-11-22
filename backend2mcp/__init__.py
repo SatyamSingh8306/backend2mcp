@@ -1,5 +1,15 @@
 """backend2mcp - Convert Python web backends into MCP servers."""
 
-__version__ = "0.1.0"
-__author__ = "backend2mcp Contributors"
+from backend2mcp.core import BaseAdapter, MCPServer, ToolInfo, mcp_tool
+
+__version__ = "0.2.0"
+__author__ = "Satyam Singh"
 __license__ = "MIT"
+
+__all__ = [
+    "BaseAdapter",
+    "ToolInfo",
+    "MCPServer",
+    "mcp_tool",
+    "__version__",
+]

@@ -20,8 +20,17 @@ Install with framework support:
 pip install backend2mcp[fastapi]      # FastAPI support
 pip install backend2mcp[flask]         # Flask support
 pip install backend2mcp[django]        # Django support
-pip install backend2mcp[fastapi,flask] # Multiple frameworks
+pip install backend2mcp[starlette]     # Starlette support
+pip install backend2mcp[aiohttp]       # aiohttp support
+pip install backend2mcp[sanic]         # Sanic support
+pip install backend2mcp[bottle]        # Bottle support
+pip install backend2mcp[quart]         # Quart support
+pip install backend2mcp[all]           # Every supported framework
 ```
+
+Supported frameworks: FastAPI, Flask, Django, Starlette, aiohttp, Sanic,
+Bottle and Quart. Every adapter has the same API: import `MCPAdapter` from
+`backend2mcp.<framework>` and call `.run()`.
 
 ## Quickstart
 
@@ -68,6 +77,20 @@ urlpatterns = [
 MCPAdapter(urlpatterns=urlpatterns).run()
 ```
 
+### Other frameworks
+
+```python
+# Starlette — from backend2mcp.starlette import MCPAdapter
+# aiohttp   — from backend2mcp.aiohttp import MCPAdapter
+# Sanic     — from backend2mcp.sanic import MCPAdapter
+# Bottle    — from backend2mcp.bottle import MCPAdapter
+# Quart     — from backend2mcp.quart import MCPAdapter
+
+MCPAdapter(app).run()
+```
+
+All adapters accept an optional `auth_provider=` and `server_name=` argument.
+
 ## CLI Usage
 
 ```bash
@@ -78,7 +101,19 @@ backend2mcp run app:app
 backend2mcp run app:app --framework fastapi
 backend2mcp run app:app --framework flask
 backend2mcp run app:app --framework django
+
+# Custom MCP server name
+backend2mcp run app:app --name my-api
+
+# Inspect the tools that would be exposed (without starting the server)
+backend2mcp list-tools app:app
+
+# Also runnable as a module
+python -m backend2mcp run app:app
 ```
+
+`--framework` accepts: `fastapi`, `flask`, `django`, `starlette`, `aiohttp`,
+`sanic`, `bottle`, `quart`.
 
 ## Decorator Override
 
@@ -93,11 +128,18 @@ app = FastAPI()
 @mcp_tool(
     name="get_user",
     description="Get a user by their ID",
-    hidden=False
+    hidden=False,
+    tags=["users"],
+    required_permissions=["read"],
 )
 async def get_user(id: int):
     return {"id": id}
 ```
+
+`mcp_tool` options: `name`, `description`, `input_schema`, `hidden`, `tags`,
+`required_permissions`. `required_permissions` are checked against the
+`AuthContext` produced by your auth provider before a tool executes. The same
+decorator is exported from every framework package and from `backend2mcp.core`.
 
 ## Tool Naming
 
@@ -207,10 +249,18 @@ backend2mcp/
 │   ├── auth.py        # Auth providers (Bearer, API Key, etc.)
 │   ├── server.py      # MCP server implementation
 │   ├── schema.py      # Schema conversion utilities
+│   ├── tool.py        # Shared tool naming + @mcp_tool decorator
+│   ├── utils.py       # Async/result helpers
+│   ├── simple.py      # Base class for lightweight adapters
 │   └── exceptions.py  # Structured exceptions
 ├── fastapi/           # FastAPI adapter
 ├── flask/             # Flask adapter
 ├── django/            # Django adapter
+├── starlette/         # Starlette adapter
+├── aiohttp/           # aiohttp adapter
+├── sanic/             # Sanic adapter
+├── bottle/            # Bottle adapter
+├── quart/             # Quart adapter
 └── cli/               # Typer CLI
 ```
 
@@ -219,8 +269,10 @@ backend2mcp/
 - **`BaseAdapter`**: Abstract interface all framework adapters implement
 - **`AuthProvider` / `AuthContext`**: Pluggable authentication system
 - **`MCPServer`**: Handles MCP protocol using official `mcp` SDK
-- **Tool Execution**: Direct handler invocation (no HTTP calls)
-- **Schema Generation**: Pydantic-integrated JSON Schema extraction
+- **Tool Execution**: Direct handler invocation (no HTTP calls), sync and async
+- **Schema Generation**: Pydantic/dataclass/type-hint JSON Schema extraction
+- **Permission Checks**: `required_permissions` enforced before tool execution
+- **Shared Naming**: One naming convention across every framework adapter
 
 ## Writing a New Adapter
 
@@ -234,39 +286,33 @@ To add support for another framework:
    - `build_tool_name()` - Generate MCP-safe tool names
 3. Export `MCPAdapter` from the subpackage
 
+For frameworks whose routes are simple ``(path, method, handler)`` tuples,
+subclass `SimpleAdapter` instead — introspection, naming and execution come
+for free:
+
 ```python
-from backend2mcp.core.adapter import BaseAdapter, ToolInfo
+from backend2mcp.core.simple import SimpleAdapter
 
-class MCPAdapter(BaseAdapter):
-    def get_routes(self) -> list[tuple]:
-        # Your route extraction logic
-        pass
+class MCPAdapter(SimpleAdapter):
+    framework_name = "myframework"
 
-    def introspect_route(self, path, method, handler, config) -> ToolInfo:
-        # Your schema extraction logic
-        pass
-
-    def execute_tool(self, handler, arguments, context=None):
-        # Your handler invocation logic
-        pass
-
-    def get_app(self):
-        # Return underlying framework object
-        pass
-
-    def build_tool_name(self, http_method, path):
-        # Your naming convention
-        pass
+    def get_routes(self):
+        for route in self.get_app().routes:
+            yield (route.path, route.method, route.handler, route)
 ```
+
+For full control, subclass `BaseAdapter` and implement `get_routes()`,
+`introspect_route()`, `execute_tool()`, `get_app()` and `build_tool_name()`.
 
 ## Roadmap
 
 | Phase | Frameworks |
 |-------|------------|
-| Phase 1 (this release) | FastAPI, Flask, Django |
-| Phase 2 | Express, NestJS, Fastify |
-| Phase 3 | Spring Boot, Quarkus |
-| Phase 4 | Gin, Fiber, Echo |
+| Phase 1 (done) | FastAPI, Flask, Django |
+| Phase 2 (done) | Starlette, aiohttp, Sanic, Bottle, Quart |
+| Phase 3 | Express, NestJS, Fastify |
+| Phase 4 | Spring Boot, Quarkus |
+| Phase 5 | Gin, Fiber, Echo |
 
 ## License
 

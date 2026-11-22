@@ -29,3 +29,9 @@ class AdapterConfigurationError(Backend2MCPError):
     """Raised when adapter is misconfigured."""
 
     pass
+
+
+class AuthenticationError(Backend2MCPError):
+    """Raised when a tool call is not allowed by the configured auth provider."""
+
+    pass

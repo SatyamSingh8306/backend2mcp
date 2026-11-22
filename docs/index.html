@@ -376,9 +376,9 @@
 
     <section class="hero">
         <div class="container">
-            <span class="badge">v0.1.0 Released</span>
+            <span class="badge">v0.2.0 Released</span>
             <h1>Turn Python Backends into<br>MCP Servers Instantly</h1>
-            <p>Convert any FastAPI, Flask, or Django application into a fully functional MCP (Model Context Protocol) server. Zero boilerplate. Pure magic.</p>
+            <p>Convert FastAPI, Flask, Django, Starlette, aiohttp, Sanic, Bottle, or Quart applications into fully functional MCP (Model Context Protocol) servers. Zero boilerplate. Pure magic.</p>
             <div class="btn-group">
                 <a href="#usage" class="btn btn-primary">
                     Get Started
@@ -420,7 +420,7 @@
                         </svg>
                     </div>
                     <h3>Multi-Framework</h3>
-                    <p>One interface, three frameworks. FastAPI, Flask, and Django all work the same way.</p>
+                    <p>One interface, eight frameworks. FastAPI, Flask, Django, Starlette, aiohttp, Sanic, Bottle and Quart all work the same way.</p>
                 </div>
 
                 <div class="feature-card">
@@ -451,7 +451,7 @@
                         </svg>
                     </div>
                     <h3>Fine-Grained Control</h3>
-                    <p>Use the @mcp_tool decorator to customize names, descriptions, or hide routes entirely.</p>
+                    <p>Use the @mcp_tool decorator to customize names, descriptions, permissions, tags, or hide routes entirely.</p>
                 </div>
 
                 <div class="feature-card">
@@ -557,10 +557,13 @@ MCPAdapter(urlpatterns=urlpatterns).run()</pre>
                 </div>
                 <div class="code-content">
                     <pre><span class="comment"># Install</span>
-$ pip install backend2mcp[fastapi,flask,django]
+$ pip install backend2mcp[fastapi,flask,django,starlette,aiohttp,sanic,bottle,quart]
 
 <span class="comment"># Run with auto-detection</span>
 $ backend2mcp run app:app
+
+<span class="comment"># Inspect exposed tools without starting the server</span>
+$ backend2mcp list-tools app:app
 
 <span class="comment"># Explicit framework</span>
 $ backend2mcp run app:app --framework fastapi</pre>
@@ -590,6 +593,31 @@ $ backend2mcp run app:app --framework fastapi</pre>
                     <h4>Django</h4>
                     <p>URL patterns, path converters, class-based views</p>
                 </div>
+                <div class="framework-card">
+                    <div class="icon">⭐</div>
+                    <h4>Starlette</h4>
+                    <p>ASGI routes, async handlers, typed path parameters</p>
+                </div>
+                <div class="framework-card">
+                    <div class="icon">🌊</div>
+                    <h4>aiohttp</h4>
+                    <p>Async web routes and dynamic resources</p>
+                </div>
+                <div class="framework-card">
+                    <div class="icon">🚀</div>
+                    <h4>Sanic</h4>
+                    <p>High-performance async HTTP routes</p>
+                </div>
+                <div class="framework-card">
+                    <div class="icon">🍶</div>
+                    <h4>Bottle</h4>
+                    <p>Micro-framework routes with both path syntaxes</p>
+                </div>
+                <div class="framework-card">
+                    <div class="icon">⚡</div>
+                    <h4>Quart</h4>
+                    <p>Async Flask-style routing and converters</p>
+                </div>
             </div>
         </div>
     </section>
@@ -602,7 +630,7 @@ $ backend2mcp run app:app --framework fastapi</pre>
             <div class="features-grid" style="max-width: 800px; margin: 0 auto;">
                 <div class="feature-card">
                     <h3>Phase 1 ✓</h3>
-                    <p>Python: FastAPI, Flask, Django</p>
+                    <p>Python: FastAPI, Flask, Django, Starlette, aiohttp, Sanic, Bottle, Quart</p>
                 </div>
                 <div class="feature-card">
                     <h3>Phase 2</h3>

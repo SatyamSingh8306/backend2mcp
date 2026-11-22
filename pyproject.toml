@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "backend2mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Convert any Python web backend into a fully functional MCP server automatically"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "backend2mcp Contributors", email = "contributors@backend2mcp.dev"}
+    {name = "Satyam Singh", email = "satyamsingh7734@gmail.com"}
 ]
-keywords = ["mcp", "model-context-protocol", "fastapi", "flask", "django"]
+keywords = ["mcp", "model-context-protocol", "fastapi", "flask", "django", "starlette", "aiohttp", "sanic", "bottle", "quart"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -25,6 +25,7 @@ classifiers = [
     "Framework :: FastAPI",
     "Framework :: Flask",
     "Framework :: Django",
+    "Framework :: aiohttp",
 ]
 urls = { homepage = "https://github.com/SatyamSingh8306/backend2mcp", repository = "https://github.com/SatyamSingh8306/backend2mcp" }
 
@@ -39,9 +40,25 @@ dependencies = [
 fastapi = ["fastapi>=0.115.0", "uvicorn>=0.32.0"]
 flask = ["flask>=3.1.0"]
 django = ["django>=5.2.0", "djangorestframework>=3.15.0"]
+starlette = ["starlette>=0.37.0"]
+aiohttp = ["aiohttp>=3.9.0"]
+sanic = ["sanic>=24.0.0"]
+bottle = ["bottle>=0.12.25"]
+quart = ["quart>=0.19.0"]
+all = [
+    "fastapi>=0.115.0", "uvicorn>=0.32.0",
+    "flask>=3.1.0",
+    "django>=5.2.0", "djangorestframework>=3.15.0",
+    "starlette>=0.37.0",
+    "aiohttp>=3.9.0",
+    "sanic>=24.0.0",
+    "bottle>=0.12.25",
+    "quart>=0.19.0",
+]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
+    "pytest-django>=4.9.0",
     "pytest-cov>=6.0.0",
     "mypy>=1.14.0",
     "black>=24.10.0",

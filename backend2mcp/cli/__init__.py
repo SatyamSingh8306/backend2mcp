@@ -1,7 +1,9 @@
 """backend2mcp CLI using typer."""
 
+from __future__ import annotations
+
 import importlib
-from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -13,101 +15,150 @@ app = typer.Typer(
     add_completion=False,
 )
 
+FRAMEWORKS = (
+    "fastapi",
+    "flask",
+    "django",
+    "starlette",
+    "aiohttp",
+    "sanic",
+    "bottle",
+    "quart",
+)
 
-@app.command()
-def run(
-    module_path: str = typer.Argument(
-        ..., help="Module path to app object (e.g., 'app:app')"
-    ),
-    framework: str = typer.Option(
-        None,
-        "--framework",
-        "-f",
-        help="Framework (fastapi, flask, django). Auto-detected if not provided",
-    ),
-) -> None:
-    """Run an MCP server from a Python web backend module."""
-    typer.echo(f"Loading module from: {module_path}")
 
-    # Parse module path
+@app.callback()
+def _cli_root() -> None:
+    """Convert Python web backends into MCP servers."""
+
+
+def _load_object(module_path: str) -> Any:
+    """Import ``module:object`` and return the object."""
     if ":" not in module_path:
         raise AdapterConfigurationError(
             f"Invalid module path format. Use 'module:object' format. Got: {module_path}"
         )
-
     module_name, obj_name = module_path.rsplit(":", 1)
-
-    # Import the module
     try:
         module = importlib.import_module(module_name)
-    except ImportError as e:
-        raise AdapterConfigurationError(
-            f"Failed to import module '{module_name}': {e}"
-        ) from e
-
-    # Get the object
+    except ImportError as exc:
+        raise AdapterConfigurationError(f"Failed to import module '{module_name}': {exc}") from exc
     try:
-        obj = getattr(module, obj_name)
-    except AttributeError as e:
+        return getattr(module, obj_name)
+    except AttributeError as exc:
         raise AdapterConfigurationError(
-            f"Failed to get '{obj_name}' from module '{module_name}': {e}"
-        ) from e
-
-    # Detect framework and create adapter
-    adapter = _detect_and_create_adapter(obj, framework)
-
-    if adapter is None:
-        raise AdapterConfigurationError(
-            f"Could not detect framework for object type: {type(obj)}"
-        )
-
-    typer.echo(f"Starting MCP server with {framework or 'auto-detected'} adapter...")
-    adapter.run()
+            f"Failed to get '{obj_name}' from module '{module_name}': {exc}"
+        ) from exc
 
 
 def _detect_and_create_adapter(obj: object, framework: str | None):
-    """Detect framework and create appropriate adapter."""
-    # Check for FastAPI
-    if framework in (None, "fastapi"):
+    """Detect the framework of ``obj`` and build the matching adapter.
+
+    Framework packages are imported lazily so only the frameworks the user
+    actually installed need to be present.
+    """
+    if framework is not None and framework.lower() not in FRAMEWORKS:
+        raise AdapterConfigurationError(
+            f"Unknown framework '{framework}'. Choose from: {', '.join(FRAMEWORKS)}"
+        )
+    framework = framework.lower() if framework else None
+
+    checks = (
+        ("fastapi", "fastapi", "FastAPI", "backend2mcp.fastapi"),
+        ("flask", "flask", "Flask", "backend2mcp.flask"),
+        ("starlette", "starlette.applications", "Starlette", "backend2mcp.starlette"),
+        ("aiohttp", "aiohttp", "Application", "backend2mcp.aiohttp"),
+        ("sanic", "sanic", "Sanic", "backend2mcp.sanic"),
+        ("bottle", "bottle", "Bottle", "backend2mcp.bottle"),
+        ("quart", "quart", "Quart", "backend2mcp.quart"),
+    )
+
+    for name, module_name, class_name, adapter_module in checks:
+        if framework not in (None, name):
+            continue
         try:
-            from fastapi import FastAPI
-            from backend2mcp.fastapi import MCPAdapter as FastAPIMCPAdapter
-
-            if isinstance(obj, FastAPI):
-                return FastAPIMCPAdapter(obj)
+            framework_cls = getattr(importlib.import_module(module_name), class_name)
+            adapter_cls = getattr(importlib.import_module(adapter_module), "MCPAdapter")
         except ImportError:
-            pass
+            continue
+        if isinstance(obj, framework_cls):
+            return adapter_cls(obj)
 
-    # Check for Flask
-    if framework in (None, "flask"):
-        try:
-            from flask import Flask
-            from backend2mcp.flask import MCPAdapter as FlaskMCPAdapter
-
-            if isinstance(obj, Flask):
-                return FlaskMCPAdapter(obj)
-        except ImportError:
-            pass
-
-    # Check for Django URLs
     if framework in (None, "django"):
-        from backend2mcp.django import MCPAdapter as DjangoMCPAdapter
+        try:
+            from backend2mcp.django import MCPAdapter as DjangoMCPAdapter
+            from django.urls import URLPattern
+        except ImportError:
+            DjangoMCPAdapter = None  # type: ignore[assignment]
+            URLPattern = None  # type: ignore[assignment]
 
-        if hasattr(obj, "__iter__") and not isinstance(obj, str):
-            # Likely a urlpatterns list
-            try:
-                from django.urls import URLPattern
-
-                first = next(iter(obj))
-                if isinstance(first, URLPattern):
-                    return DjangoMCPAdapter(urls=list(obj))
-            except (StopIteration, TypeError):
-                pass
-
-        if isinstance(obj, list):
-            return DjangoMCPAdapter(urls=obj)
+        if DjangoMCPAdapter is not None:
+            if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
+                items = list(obj)
+                if items and URLPattern is not None and all(
+                    isinstance(item, URLPattern) for item in items
+                ):
+                    return DjangoMCPAdapter(urls=items)
+            if isinstance(obj, list):
+                return DjangoMCPAdapter(urls=obj)
 
     return None
+
+
+def _create_adapter(module_path: str, framework: str | None, name: str | None):
+    """Load an app and create its adapter, with actionable errors."""
+    typer.echo(f"Loading module from: {module_path}")
+    obj = _load_object(module_path)
+    adapter = _detect_and_create_adapter(obj, framework)
+    if adapter is None:
+        raise AdapterConfigurationError(
+            f"Could not detect framework for object type: {type(obj).__name__}"
+        )
+    if name:
+        adapter.server_name = name
+    return adapter
+
+
+@app.command()
+def run(
+    module_path: str = typer.Argument(..., help="Module path to app object (e.g. 'app:app')"),
+    framework: str | None = typer.Option(
+        None, "--framework", "-f", help=f"Framework ({', '.join(FRAMEWORKS)}). Auto-detected"
+    ),
+    name: str | None = typer.Option(None, "--name", "-n", help="MCP server name"),
+) -> None:
+    """Run an MCP server from a Python web backend module."""
+    adapter = _create_adapter(module_path, framework, name)
+    typer.echo(f"Starting MCP server with {adapter.server_name}...")
+    adapter.run()
+
+
+@app.command("list-tools")
+def list_tools(
+    module_path: str = typer.Argument(..., help="Module path to app object (e.g. 'app:app')"),
+    framework: str | None = typer.Option(
+        None, "--framework", "-f", help=f"Framework ({', '.join(FRAMEWORKS)}). Auto-detected"
+    ),
+) -> None:
+    """List the MCP tools a backend would expose, without starting a server."""
+    adapter = _create_adapter(module_path, framework, None)
+    tools = []
+    for path, method, handler, config in adapter.get_routes():
+        tool = adapter.introspect_route(path, method, handler, config)
+        if tool.hidden:
+            continue
+        props = ", ".join(tool.input_schema.get("properties", {})) or "-"
+        tools.append((tool.name, tool.http_method, tool.route_path, props, tool.description))
+
+    if not tools:
+        typer.echo("No tools found.")
+        return
+
+    typer.echo(f"{len(tools)} tool(s) found:\n")
+    for tool_name, method, path, props, description in tools:
+        typer.echo(f"  {tool_name}")
+        typer.echo(f"    {description}")
+        typer.echo(f"    arguments: {props}")
 
 
 def main() -> None:

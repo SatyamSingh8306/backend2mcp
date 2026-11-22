@@ -1,5 +1,5 @@
 """Django MCP Adapter."""
 
-from backend2mcp.django.adapter import MCPAdapter
+from backend2mcp.django.adapter import MCPAdapter, mcp_tool
 
-__all__ = ["MCPAdapter"]
+__all__ = ["MCPAdapter", "mcp_tool"]

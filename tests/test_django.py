@@ -12,8 +12,6 @@ class TestDjangoBasic:
     @pytest.fixture
     def django_app(self, settings):
         """Create Django URL patterns for testing."""
-        import django
-        from django.conf import settings
         from django.urls import path
 
         settings.configure(

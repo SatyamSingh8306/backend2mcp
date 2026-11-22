@@ -80,7 +80,7 @@ class TestFastAPIBasic:
                 assert tool_info.http_method == "GET"
                 assert tool_info.route_path == "/search"
                 assert tool_info.hidden is False
-                assert "inputSchema" in tool_info.input_schema
+                assert "type" in tool_info.input_schema
                 assert "properties" in tool_info.input_schema
                 return
 

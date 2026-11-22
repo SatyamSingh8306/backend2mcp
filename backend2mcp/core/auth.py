@@ -7,6 +7,17 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+def _header_get(headers: dict[str, str], name: str, default: str = "") -> str:
+    """Case-insensitive header lookup (HTTP headers are case-insensitive)."""
+    if name in headers:
+        return headers[name]
+    lowered = name.lower()
+    for key, value in headers.items():
+        if key.lower() == lowered:
+            return value
+    return default
+
+
 @dataclass
 class AuthContext:
     """Authentication context passed to tool execution.
@@ -98,7 +109,7 @@ class BearerAuthProvider(AuthProvider):
         # Try to get header from various framework request objects
         headers = self._extract_headers(request)
 
-        auth_header = headers.get(self.token_header, "")
+        auth_header = _header_get(headers, self.token_header)
 
         if not auth_header.startswith(f"{self.token_prefix} "):
             return AuthContext()
@@ -171,7 +182,7 @@ class APIKeyAuthProvider(AuthProvider):
         # FastAPI/Starlette
         if hasattr(request, "headers"):
             headers = dict(request.headers)
-            api_key = headers.get(self.header_name) or request.query_params.get(self.query_param)
+            api_key = _header_get(headers, self.header_name) or request.query_params.get(self.query_param)
         # Flask
         elif hasattr(request, "environ"):
             headers = {self.header_name: request.environ.get(f"HTTP_{self.header_name.upper().replace('-', '_')}", "")}
@@ -191,6 +202,7 @@ class APIKeyAuthProvider(AuthProvider):
 
         return AuthContext(
             headers=headers,
+            token=api_key,
             user_id=f"apikey-{api_key[:8]}",
             permissions={"api"},
         )
