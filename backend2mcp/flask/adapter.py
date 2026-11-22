@@ -18,6 +18,8 @@ from backend2mcp.core.schema import (
     type_to_json_schema,
 )
 from backend2mcp.core.tool import build_tool_name, mcp_tool  # noqa: F401 (re-export)
+
+__all__ = ["MCPAdapter", "mcp_tool"]
 from backend2mcp.core.utils import normalize_result, prepare_execution_arguments, run_coroutine_sync
 
 _CONVERTER_ARG = re.compile(r"<(?:(?P<conv>[\w.]+(?:\([^>]*\))?):)?(?P<name>\w+)>")

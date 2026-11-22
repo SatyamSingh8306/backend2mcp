@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any
+from typing import Any, cast
 
 import typer
 
+from backend2mcp.core.adapter import BaseAdapter
 from backend2mcp.core.exceptions import AdapterConfigurationError
 
 app = typer.Typer(
@@ -27,7 +28,7 @@ FRAMEWORKS = (
 )
 
 
-@app.callback()
+@app.callback()  # type: ignore[untyped-decorator]
 def _cli_root() -> None:
     """Convert Python web backends into MCP servers."""
 
@@ -51,7 +52,7 @@ def _load_object(module_path: str) -> Any:
         ) from exc
 
 
-def _detect_and_create_adapter(obj: object, framework: str | None):
+def _detect_and_create_adapter(obj: object, framework: str | None) -> BaseAdapter | None:
     """Detect the framework of ``obj`` and build the matching adapter.
 
     Framework packages are imported lazily so only the frameworks the user
@@ -78,7 +79,10 @@ def _detect_and_create_adapter(obj: object, framework: str | None):
             continue
         try:
             framework_cls = getattr(importlib.import_module(module_name), class_name)
-            adapter_cls = getattr(importlib.import_module(adapter_module), "MCPAdapter")
+            adapter_cls = cast(
+                type[BaseAdapter],
+                getattr(importlib.import_module(adapter_module), "MCPAdapter"),
+            )
         except ImportError:
             continue
         if isinstance(obj, framework_cls):
@@ -89,23 +93,19 @@ def _detect_and_create_adapter(obj: object, framework: str | None):
             from backend2mcp.django import MCPAdapter as DjangoMCPAdapter
             from django.urls import URLPattern
         except ImportError:
-            DjangoMCPAdapter = None  # type: ignore[assignment]
-            URLPattern = None  # type: ignore[assignment]
+            return None
 
-        if DjangoMCPAdapter is not None:
-            if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
-                items = list(obj)
-                if items and URLPattern is not None and all(
-                    isinstance(item, URLPattern) for item in items
-                ):
-                    return DjangoMCPAdapter(urls=items)
-            if isinstance(obj, list):
-                return DjangoMCPAdapter(urls=obj)
+        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes, dict)):
+            items = list(obj)
+            if items and all(isinstance(item, URLPattern) for item in items):
+                return DjangoMCPAdapter(urls=items)
+        if isinstance(obj, list):
+            return DjangoMCPAdapter(urls=obj)
 
     return None
 
 
-def _create_adapter(module_path: str, framework: str | None, name: str | None):
+def _create_adapter(module_path: str, framework: str | None, name: str | None) -> BaseAdapter:
     """Load an app and create its adapter, with actionable errors."""
     typer.echo(f"Loading module from: {module_path}")
     obj = _load_object(module_path)
@@ -119,7 +119,7 @@ def _create_adapter(module_path: str, framework: str | None, name: str | None):
     return adapter
 
 
-@app.command()
+@app.command()  # type: ignore[untyped-decorator]
 def run(
     module_path: str = typer.Argument(..., help="Module path to app object (e.g. 'app:app')"),
     framework: str | None = typer.Option(
@@ -133,7 +133,7 @@ def run(
     adapter.run()
 
 
-@app.command("list-tools")
+@app.command("list-tools")  # type: ignore[untyped-decorator]
 def list_tools(
     module_path: str = typer.Argument(..., help="Module path to app object (e.g. 'app:app')"),
     framework: str | None = typer.Option(

@@ -23,6 +23,7 @@ from typing import (
     Any,
     Literal,
     Union,
+    cast,
     get_args,
     get_origin,
     get_type_hints,
@@ -119,17 +120,17 @@ def type_to_json_schema(
     # Literal["a", "b"] -> enum
     if origin is Literal:
         values = list(args)
-        schema: dict[str, Any] = {"enum": values}
+        literal_schema: dict[str, Any] = {"enum": values}
         sample = values[0] if values else None
         if isinstance(sample, bool):
-            schema["type"] = "boolean"
+            literal_schema["type"] = "boolean"
         elif isinstance(sample, int):
-            schema["type"] = "integer"
+            literal_schema["type"] = "integer"
         elif isinstance(sample, float):
-            schema["type"] = "number"
+            literal_schema["type"] = "number"
         elif isinstance(sample, str):
-            schema["type"] = "string"
-        return schema
+            literal_schema["type"] = "string"
+        return literal_schema
 
     # Optional[T], Union[A, B], A | B
     if origin in (Union, types.UnionType):
@@ -158,9 +159,10 @@ def type_to_json_schema(
         if typ in seen:
             return {"type": "object"}  # Recursive model — stop the cycle.
         nested = seen | {typ}
+        model_type = cast(type[BaseModel], typ)
         properties: dict[str, Any] = {}
         required: list[str] = []
-        for name, field_info in typ.model_fields.items():
+        for name, field_info in model_type.model_fields.items():
             field_schema = type_to_json_schema(field_info.annotation, name, nested)
             description = getattr(field_info, "description", None)
             if description:

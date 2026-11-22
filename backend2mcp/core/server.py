@@ -65,7 +65,7 @@ class MCPServer:
     def _setup_handlers(self) -> None:
         """Register MCP request handlers."""
 
-        @self._server.list_tools()
+        @self._server.list_tools()  # type: ignore[untyped-decorator]
         async def list_tools() -> list[MCPTool]:
             """Return all visible tools derived from the adapter's routes."""
             return [
@@ -74,7 +74,7 @@ class MCPServer:
                 if not info.hidden
             ]
 
-        @self._server.call_tool()
+        @self._server.call_tool()  # type: ignore[untyped-decorator]
         async def call_tool(name: str, arguments: dict[str, Any]) -> Any:
             """Execute a tool by name and return MCP content blocks."""
             info = next(

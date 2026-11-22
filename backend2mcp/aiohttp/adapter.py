@@ -12,6 +12,8 @@ from backend2mcp.core.simple import SimpleAdapter
 from backend2mcp.core.tool import mcp_tool  # noqa: F401 (re-export)
 from backend2mcp.core.tool import normalize_route_path
 
+__all__ = ["MCPAdapter", "mcp_tool"]
+
 _HTTP_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 
 

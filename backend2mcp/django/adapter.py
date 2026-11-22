@@ -18,6 +18,8 @@ from backend2mcp.core.schema import (
     route_to_description,
 )
 from backend2mcp.core.tool import build_tool_name, mcp_tool  # noqa: F401 (re-export)
+
+__all__ = ["MCPAdapter", "mcp_tool"]
 from backend2mcp.core.utils import normalize_result, prepare_execution_arguments, run_coroutine_sync
 
 _HTTP_METHODS = ("get", "post", "put", "patch", "delete")
