@@ -274,6 +274,14 @@ backend2mcp/
 - **Permission Checks**: `required_permissions` enforced before tool execution
 - **Shared Naming**: One naming convention across every framework adapter
 
+### MCP SDK compatibility
+
+`backend2mcp` works with both MCP Python SDK 1.x and 2.x. The low-level `Server`
+API changed in SDK 2.0: the `@server.list_tools()` / `@server.call_tool()`
+decorators were replaced by `on_list_tools=` / `on_call_tool=` constructor
+handlers with an `(ctx, params)` signature. The server layer detects the
+installed API and registers the matching handlers, so no `<2` pin is needed.
+
 ## Writing a New Adapter
 
 To add support for another framework:

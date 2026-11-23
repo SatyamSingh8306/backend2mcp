@@ -1,4 +1,11 @@
-"""MCP Server implementation using the official SDK."""
+"""MCP Server implementation using the official SDK.
+
+The low-level ``Server`` API changed in MCP Python SDK 2.0: the
+``@server.list_tools()`` / ``@server.call_tool()`` decorators were replaced by
+``on_list_tools=`` / ``on_call_tool=`` constructor parameters whose handlers
+take ``(ctx, params)`` and return fully-built result objects.  Both shapes are
+supported here so backend2mcp runs with mcp 1.x and 2.x without a hard pin.
+"""
 
 from __future__ import annotations
 
@@ -7,10 +14,13 @@ from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import CallToolResult, TextContent, Tool as MCPTool
+from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool as MCPTool
 
 from backend2mcp.core.adapter import BaseAdapter, ToolInfo
 from backend2mcp.core.utils import serialize_result
+
+# v2 removed the decorator methods from the low-level Server class.
+_MCP_SDK_V2 = not hasattr(Server, "list_tools")
 
 
 class MCPServer:
@@ -26,8 +36,17 @@ class MCPServer:
         self.name = name
         self.cache_tools = cache_tools
         self._tool_cache: list[ToolInfo] | None = None
-        self._server = Server(name)
-        self._setup_handlers()
+        if _MCP_SDK_V2:
+            # SDK >= 2.0: handlers are constructor parameters.
+            self._server = Server(
+                name,
+                on_list_tools=self._list_tools_v2,
+                on_call_tool=self._call_tool_v2,
+            )
+        else:
+            # SDK 1.x: handlers are registered through decorators.
+            self._server = Server(name)
+            self._setup_handlers_v1()
 
     def refresh_tools(self) -> None:
         """Discard cached tool metadata so routes are re-introspected."""
@@ -55,57 +74,81 @@ class MCPServer:
             self._tool_cache = infos
         return infos
 
+    def _build_tools(self) -> list[MCPTool]:
+        """Build the MCP tool definitions for all visible routes."""
+        return [MCPTool(**info.to_mcp_tool()) for info in self._get_tool_infos() if not info.hidden]
+
     @staticmethod
     def _error_result(message: str) -> CallToolResult:
-        return CallToolResult(
-            content=[TextContent(type="text", text=message)],
-            isError=True,
+        # ``isError`` is the wire key in both SDK majors; validate from a dict
+        # so the constructor keyword rename in v2 does not matter here.
+        return CallToolResult.model_validate(
+            {"content": [TextContent(type="text", text=message)], "isError": True}
         )
 
-    def _setup_handlers(self) -> None:
-        """Register MCP request handlers."""
+    async def _dispatch_call(self, name: str, arguments: dict[str, Any] | None) -> CallToolResult:
+        """Resolve, authorize and execute a tool call (shared by both SDKs)."""
+        info = next(
+            (item for item in self._get_tool_infos() if item.name == name and not item.hidden),
+            None,
+        )
+        if info is None:
+            return self._error_result(f"Tool not found: {name}")
 
+        auth_context = self.adapter.get_auth_context()
+        if info.required_permissions and not self.adapter.auth_provider.validate_request(
+            auth_context, info.required_permissions
+        ):
+            return self._error_result(
+                f"Permission denied for tool '{name}'. "
+                f"Required: {', '.join(info.required_permissions)}"
+            )
+
+        try:
+            # Off-load synchronous/blocking handlers so the MCP event loop
+            # stays responsive; async handlers still work because
+            # adapters use ``run_coroutine_sync`` internally.
+            result = await asyncio.to_thread(
+                self.adapter.execute_tool,
+                info.handler,
+                arguments or {},
+                auth_context,
+            )
+            return CallToolResult(content=[TextContent(type="text", text=serialize_result(result))])
+        except Exception as exc:
+            return self._error_result(f"Error executing tool '{name}': {exc}")
+
+    # -- MCP SDK 1.x: decorator-based handlers -------------------------------
+
+    def _setup_handlers_v1(self) -> None:
         @self._server.list_tools()  # type: ignore[untyped-decorator]
         async def list_tools() -> list[MCPTool]:
             """Return all visible tools derived from the adapter's routes."""
-            return [
-                MCPTool(**info.to_mcp_tool())
-                for info in self._get_tool_infos()
-                if not info.hidden
-            ]
+            return self._build_tools()
 
         @self._server.call_tool()  # type: ignore[untyped-decorator]
         async def call_tool(name: str, arguments: dict[str, Any]) -> Any:
-            """Execute a tool by name and return MCP content blocks."""
-            info = next(
-                (item for item in self._get_tool_infos() if item.name == name and not item.hidden),
-                None,
-            )
-            if info is None:
-                return self._error_result(f"Tool not found: {name}")
+            """Execute a tool by name and return MCP content blocks.
 
-            auth_context = self.adapter.get_auth_context()
-            if info.required_permissions and not self.adapter.auth_provider.validate_request(
-                auth_context, info.required_permissions
-            ):
-                return self._error_result(
-                    f"Permission denied for tool '{name}'. "
-                    f"Required: {', '.join(info.required_permissions)}"
-                )
+            Return bare content blocks rather than a CallToolResult: early mcp
+            1.x decorators wrap the return value unconditionally, while later
+            ones pass a CallToolResult through. Raise on errors so every v1
+            decorator builds the isError result itself.
+            """
+            result = await self._dispatch_call(name, arguments)
+            if result.model_dump(by_alias=True).get("isError"):
+                raise RuntimeError(result.content[0].text)
+            return result.content
 
-            try:
-                # Off-load synchronous/blocking handlers so the MCP event loop
-                # stays responsive; async handlers still work because
-                # adapters use ``run_coroutine_sync`` internally.
-                result = await asyncio.to_thread(
-                    self.adapter.execute_tool,
-                    info.handler,
-                    arguments or {},
-                    auth_context,
-                )
-                return [TextContent(type="text", text=serialize_result(result))]
-            except Exception as exc:
-                return self._error_result(f"Error executing tool '{name}': {exc}")
+    # -- MCP SDK 2.x: constructor-based handlers -----------------------------
+
+    async def _list_tools_v2(self, ctx: Any, params: Any) -> ListToolsResult:
+        """Return all visible tools derived from the adapter's routes."""
+        return ListToolsResult(tools=self._build_tools())
+
+    async def _call_tool_v2(self, ctx: Any, params: Any) -> CallToolResult:
+        """Execute a tool by name and return MCP content blocks."""
+        return await self._dispatch_call(params.name, params.arguments or {})
 
     async def run(self) -> None:
         """Run the MCP server using stdio transport."""
