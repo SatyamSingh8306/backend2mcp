@@ -78,7 +78,9 @@ def _list_tools(server: MCPServer) -> ListToolsResult:
         entry = server._server.get_request_handler("tools/list")
         assert entry is not None
         return asyncio.run(entry.handler(None, entry.params_type()))
-    result = asyncio.run(server._server.request_handlers[ListToolsRequest](ListToolsRequest()))
+    result = asyncio.run(
+        server._server.request_handlers[ListToolsRequest](ListToolsRequest(method="tools/list"))
+    )
     return result.root
 
 
@@ -95,7 +97,10 @@ def _call(server: MCPServer, name: str, arguments: dict[str, Any] | None = None)
         assert entry is not None
         params = entry.params_type(name=name, arguments=arguments or {})
         return asyncio.run(entry.handler(None, params))
-    request = CallToolRequest(params=CallToolRequestParams(name=name, arguments=arguments or {}))
+    request = CallToolRequest(
+        method="tools/call",
+        params=CallToolRequestParams(name=name, arguments=arguments or {}),
+    )
     result = asyncio.run(server._server.request_handlers[CallToolRequest](request))
     return result.root
 

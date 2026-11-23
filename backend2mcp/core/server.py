@@ -127,9 +127,18 @@ class MCPServer:
             return self._build_tools()
 
         @self._server.call_tool()  # type: ignore[untyped-decorator]
-        async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
-            """Execute a tool by name and return MCP content blocks."""
-            return await self._dispatch_call(name, arguments)
+        async def call_tool(name: str, arguments: dict[str, Any]) -> Any:
+            """Execute a tool by name and return MCP content blocks.
+
+            Return bare content blocks rather than a CallToolResult: early mcp
+            1.x decorators wrap the return value unconditionally, while later
+            ones pass a CallToolResult through. Raise on errors so every v1
+            decorator builds the isError result itself.
+            """
+            result = await self._dispatch_call(name, arguments)
+            if result.model_dump(by_alias=True).get("isError"):
+                raise RuntimeError(result.content[0].text)
+            return result.content
 
     # -- MCP SDK 2.x: constructor-based handlers -----------------------------
 
